@@ -1,0 +1,25 @@
+{
+  "name": "file-transactions-analyser",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "tsc": "tsc --noEmit",
+    "start": "npm run tsc && tsx --watch src/index.ts",
+    "tool": "npm run tsc && tsx src/index.ts",
+    "test": "npm run tsc && tsx src/tests.ts"
+  },
+  "engines": {
+    "node": "24",
+    "npm": "11"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

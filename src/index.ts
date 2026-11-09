@@ -1,3 +1,4 @@
+import type { Manager } from "./types/manager.js";
 import fs, { type FileHandle } from "node:fs/promises";
 import process from "node:process";
 import { BuildOutput } from "./build-output.js";
@@ -23,32 +24,74 @@ if (inputFilePath && outputFilePath && inputFilePath.includes(".json") && output
 
     const inputFileName = inputFilePath.slice(inputFilePath.lastIndexOf("/") + 1);
     const validChunks: Buffer[] = [];
-    const manager = {
-      firstChunk: true,
-      lastChunk: false,
-      openBracket: false,
-      closeBracket: false,
-      spare: "",
+    const manager: Manager = {
+      state: "start",
+      depth: 0,
+      inString: false,
+      escaped: false,
+      objectText: "",
     };
-
-    // const transactions = new Set();
 
     for await (const chunk of fileReadStream) {
       const bufferToString = chunk.toString("utf-8");
-      const hasFirstBracket = bufferToString.includes("[");
-      const hasLastBracket = bufferToString.includes("]");
 
-      if (manager.firstChunk && hasFirstBracket && !hasLastBracket) {
-        const lastValidIndex = bufferToString.lastIndexOf("}");
-        const dataJSON = JSON.parse(`[${bufferToString.slice(1, lastValidIndex + 1).trim()}]`);
-        manager.spare = bufferToString.slice(lastValidIndex);
+      for (const currentChar of bufferToString) {
+        if (manager.depth === 0) {
+          const isAInvalidChar = /[ \t\r\n]/.test(currentChar);
 
-        manager.openBracket = true;
-        manager.firstChunk = false;
+          if (isAInvalidChar) {
+            continue;
+          }
 
-        console.dir(bufferToString);
-        continue;
+          if (currentChar === "[" && manager.state === "start") {
+            manager.state = "first";
+          } else if (currentChar === "{" && (manager.state === "first" || manager.state === "item")) {
+            manager.depth = manager.depth + 1;
+            manager.objectText = currentChar;
+          } else if (manager.state === "separator" && currentChar === ",") {
+            manager.state = "item";
+          }
+
+          continue;
+        }
+
+        manager.objectText += currentChar;
+
+        if (manager.inString) {
+          if (manager.escaped) {
+            manager.escaped = false;
+          } else if (currentChar === '"') {
+            manager.inString = false;
+          } else if (currentChar === "\\") {
+            manager.escaped = true;
+          }
+        } else if (currentChar === '"') {
+          manager.inString = true;
+        } else if (currentChar === "{") {
+          manager.depth = manager.depth + 1;
+        } else if (currentChar === "}") {
+          manager.depth = manager.depth - 1;
+
+          if (manager.depth === 0) {
+            const transition = JSON.parse(manager.objectText);
+            manager.state === "separator";
+            manager.objectText = "";
+          }
+        }
       }
+
+      // {
+      // const hasFirstBracket = bufferToString.includes("[");
+      // const hasLastBracket = bufferToString.includes("]");
+
+      // console.dir(bufferToString);
+      // break;
+
+      // if (manager.firstChunk && hasFirstBracket && !hasLastBracket) {
+      //   const lastValidIndex = bufferToString.lastIndexOf("}");
+      //   const dataJSON = JSON.parse(`[${bufferToString.slice(1, lastValidIndex + 1).trim()}]`);
+      //   continue;
+      // }
 
       // console.log(bufferToString);
       // break;
@@ -65,8 +108,10 @@ if (inputFilePath && outputFilePath && inputFilePath.includes(".json") && output
       //   .trim();
       // console.log(JSON.parse(dataJSON));
       // console.log(JSON.parse(dataJSON));
+      // }
     }
 
+    // {
     // fileReadStream.on("data", (chunk: any) => {
     //   buffers.push(chunk);
     //   console.log(buffers);
@@ -101,6 +146,7 @@ if (inputFilePath && outputFilePath && inputFilePath.includes(".json") && output
     //   }
 
     // });
+    // }
   } catch (error) {
     console.error(error);
   } finally {
